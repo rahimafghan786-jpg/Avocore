@@ -1,0 +1,72 @@
+@import "tailwindcss";
+@import "@fontsource/space-grotesk/500.css";
+@import "@fontsource/space-grotesk/600.css";
+@import "@fontsource/space-grotesk/700.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+:root {
+  --bg-base: #0a0c11;
+  --bg-surface: #12151d;
+  --bg-surface-raised: #191d28;
+  --border-subtle: #242938;
+  --border-strong: #323950;
+  --text-primary: #e7e9ef;
+  --text-muted: #8b93a7;
+  --text-faint: #5c6479;
+
+  --accent-amber: #e3a23c;
+  --accent-amber-dim: #7a5a26;
+  --accent-green: #4fae7a;
+  --accent-green-dim: #294f3b;
+  --accent-blue: #5b8def;
+  --accent-blue-dim: #2a3f66;
+  --accent-purple: #9b7fe0;
+  --accent-purple-dim: #3f3564;
+  --accent-red: #e2604f;
+  --accent-red-dim: #5c2e27;
+  --accent-gray: #5c6373;
+  --accent-gray-dim: #2a2e3a;
+
+  --font-display: "Space Grotesk", sans-serif;
+  --font-body: "IBM Plex Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+}
+
+@theme inline {
+  --color-background: var(--bg-base);
+  --color-foreground: var(--text-primary);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-mono);
+}
+
+* {
+  border-color: var(--border-subtle);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent-amber-dim);
+  color: var(--text-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
