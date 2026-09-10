@@ -96,4 +96,3 @@ export async function runFinancialAgent(
     durationMs: Date.now() - start,
   };
 }
-Activate Census trade data
