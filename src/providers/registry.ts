@@ -9,6 +9,9 @@ import { MockRegulatoryProvider } from "./mock/regulatory.provider";
 import { MockShippingProvider } from "./mock/shipping.provider";
 import { CpscRegulatoryProvider } from "./real/cpsc.provider";
 import { UsitcTariffProvider } from "./real/usitc-tariff.provider";
+import { EbayListingSearchProvider } from "./real/ebay-marketplace.provider";
+import { AmazonCatalogSearchProvider } from "./real/amazon-marketplace.provider";
+import { CompositeMarketplaceProvider, NamedMarketplaceSearchSource } from "./real/composite-marketplace.provider";
 
 // Real-with-fallback wrappers (Phase 2A). Each tries the real provider first; if it
 // throws (network error, source down, unexpected response shape), the error is
@@ -43,13 +46,28 @@ class TariffProviderWithFallback implements TariffProvider {
 }
 
 // Phase 2A: CPSC and USITC are real by default (both are free, official, no API key
-// required — there's no "not configured" state to gate behind, unlike Supabase/eBay).
-// Real failures fall back to mock automatically via the wrappers above.
-// Phase 1 providers still cover everything else. Swap one line at a time as Phase 2B
-// sources come online — nothing in agents/ or lib/ needs to change when a provider
-// is swapped.
+// required — there's no "not configured" state to gate behind, unlike Supabase/eBay/Amazon).
+// Phase 2B: marketplace search combines every configured real source (eBay, Amazon) —
+// see composite-marketplace.provider.ts. Each source activates independently as its
+// credentials are added; falls back to mock (visibly labeled) only if none are configured
+// or all configured sources fail on a given call.
+const ebaySource: NamedMarketplaceSearchSource = {
+  name: "eBay",
+  isConfigured: () => Boolean(process.env.EBAY_APP_ID && process.env.EBAY_CERT_ID),
+  searchListings: (query) => new EbayListingSearchProvider().searchListings(query),
+};
+
+const amazonSource: NamedMarketplaceSearchSource = {
+  name: "Amazon",
+  isConfigured: () =>
+    Boolean(
+      process.env.AMAZON_CLIENT_ID && process.env.AMAZON_CLIENT_SECRET && process.env.AMAZON_REFRESH_TOKEN
+    ),
+  searchListings: (query) => new AmazonCatalogSearchProvider().searchListings(query),
+};
+
 export const providers: ProviderRegistry = {
-  marketplace: new MockMarketplaceProvider(),
+  marketplace: new CompositeMarketplaceProvider([ebaySource, amazonSource], new MockMarketplaceProvider()),
   search: new MockSearchProvider(),
   trend: new MockTrendProvider(),
   social: new MockSocialProvider(),
@@ -60,7 +78,19 @@ export const providers: ProviderRegistry = {
 };
 
 export const providerStatuses: ProviderStatus[] = [
-  { key: "marketplace", label: "Marketplace (Amazon/Walmart)", connected: false, plannedPhase: "Phase 2B" },
+  {
+    key: "marketplace",
+    label: "Marketplace (eBay + Amazon, live per source)",
+    connected: ebaySource.isConfigured() || amazonSource.isConfigured(),
+    plannedPhase: [
+      ebaySource.isConfigured() ? "eBay: live" : "eBay: needs EBAY_APP_ID/EBAY_CERT_ID",
+      amazonSource.isConfigured()
+        ? "Amazon: live"
+        : "Amazon: needs AMAZON_CLIENT_ID/AMAZON_CLIENT_SECRET/AMAZON_REFRESH_TOKEN",
+      "Walmart: structurally blocked (seller-only API)",
+      "Costco: not applicable (no marketplace API)",
+    ].join(" · "),
+  },
   { key: "search", label: "Search Volume", connected: false, plannedPhase: "Phase 2B" },
   { key: "trend", label: "Trend (Google Trends)", connected: false, plannedPhase: "Phase 2B" },
   { key: "social", label: "Social Signals (Reddit/TikTok/etc.)", connected: false, plannedPhase: "Phase 3" },
