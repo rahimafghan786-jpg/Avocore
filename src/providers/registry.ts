@@ -1,4 +1,4 @@
-import { ProviderRegistry, ProviderStatus, RegulatoryProvider, TariffProvider } from "@/domain/provider";
+import { ProviderRegistry, ProviderStatus, RegulatoryProvider, TariffProvider, TrendProvider } from "@/domain/provider";
 import { MockMarketplaceProvider } from "./mock/marketplace.provider";
 import { MockSearchProvider } from "./mock/search.provider";
 import { MockTrendProvider } from "./mock/trend.provider";
@@ -12,6 +12,7 @@ import { UsitcTariffProvider } from "./real/usitc-tariff.provider";
 import { EbayListingSearchProvider } from "./real/ebay-marketplace.provider";
 import { AmazonCatalogSearchProvider } from "./real/amazon-marketplace.provider";
 import { CompositeMarketplaceProvider, NamedMarketplaceSearchSource } from "./real/composite-marketplace.provider";
+import { SerpApiTrendProvider } from "./real/serpapi-trend.provider";
 
 // Real-with-fallback wrappers (Phase 2A). Each tries the real provider first; if it
 // throws (network error, source down, unexpected response shape), the error is
@@ -45,6 +46,19 @@ class TariffProviderWithFallback implements TariffProvider {
   }
 }
 
+class TrendProviderWithFallback implements TrendProvider {
+  constructor(private real: TrendProvider, private mock: TrendProvider) {}
+  async getTrend(term: string, market: "US") {
+    try {
+      return await this.real.getTrend(term, market);
+    } catch (err) {
+      console.error("Real TrendProvider (SerpApi) failed, falling back to mock:", err);
+      const fallback = await this.mock.getTrend(term, market);
+      return { ...fallback, claim: `[REAL DATA UNAVAILABLE — USING MOCK DATA] ${fallback.claim}` };
+    }
+  }
+}
+
 // Phase 2A: CPSC and USITC are real by default (both are free, official, no API key
 // required — there's no "not configured" state to gate behind, unlike Supabase/eBay/Amazon).
 // Phase 2B: marketplace search combines every configured real source (eBay, Amazon) —
@@ -69,7 +83,7 @@ const amazonSource: NamedMarketplaceSearchSource = {
 export const providers: ProviderRegistry = {
   marketplace: new CompositeMarketplaceProvider([ebaySource, amazonSource], new MockMarketplaceProvider()),
   search: new MockSearchProvider(),
-  trend: new MockTrendProvider(),
+  trend: new TrendProviderWithFallback(new SerpApiTrendProvider(), new MockTrendProvider()),
   social: new MockSocialProvider(),
   supplier: new MockSupplierProvider(),
   tariff: new TariffProviderWithFallback(new UsitcTariffProvider(), new MockTariffProvider()),
@@ -92,7 +106,12 @@ export const providerStatuses: ProviderStatus[] = [
     ].join(" · "),
   },
   { key: "search", label: "Search Volume", connected: false, plannedPhase: "Phase 2B" },
-  { key: "trend", label: "Trend (Google Trends)", connected: false, plannedPhase: "Phase 2B" },
+  {
+    key: "trend",
+    label: "Trend (Google Trends via SerpApi, live)",
+    connected: Boolean(process.env.SERPAPI_KEY),
+    plannedPhase: "Phase 2B — live if SERPAPI_KEY set, else mock fallback",
+  },
   { key: "social", label: "Social Signals (Reddit/TikTok/etc.)", connected: false, plannedPhase: "Phase 3" },
   { key: "supplier", label: "Supplier Directory", connected: false, plannedPhase: "Phase 3" },
   { key: "tariff", label: "Tariff / HTS Lookup (USITC, live)", connected: true, plannedPhase: "Phase 2A — live" },
